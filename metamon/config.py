@@ -37,4 +37,23 @@ def format_for_agent(fmt: str) -> str:
     return FORMAT_ALIASES.get(fmt.lower(), fmt.lower())
 
 
+_repo_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+_dotenv_path = os.path.join(_repo_root, ".env")
+if os.path.exists(_dotenv_path):
+    with open(_dotenv_path, "r", encoding="utf-8") as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                os.environ.setdefault(_k.strip(), _v.strip().strip('"').strip("'"))
+
+if "METAMON_CACHE_DIR" not in os.environ:
+    os.environ["METAMON_CACHE_DIR"] = os.path.join(_repo_root, ".cache")
+elif not os.path.isabs(os.environ["METAMON_CACHE_DIR"]):
+    os.environ["METAMON_CACHE_DIR"] = os.path.join(
+        _repo_root, os.environ["METAMON_CACHE_DIR"]
+    )
+
 METAMON_CACHE_DIR = os.environ.get("METAMON_CACHE_DIR", None)
+if METAMON_CACHE_DIR is not None:
+    os.makedirs(METAMON_CACHE_DIR, exist_ok=True)
