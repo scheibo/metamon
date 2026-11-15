@@ -256,15 +256,15 @@ class SimProtocol:
         """
         player, size = args
         size = int(size)
-        assert len(self.curr_turn.pokemon_1) == 6
-        assert len(self.curr_turn.pokemon_2) == 6
         if player == "p1":
             team = self.curr_turn.pokemon_1
         elif player == "p2":
             team = self.curr_turn.pokemon_2
+        else:
+            return
         while len(team) > size and None in team:
             team.remove(None)
-        if size != 6:
+        if size < 1 or size > 6:
             raise UnusualTeamSize(size)
 
     def _parse_turn(self, args: List[str]):
@@ -767,6 +767,10 @@ class SimProtocol:
                 stats = ["atk", "spa", "def", "spd", "spe", "accuracy", "evasion"]
             elif "Guard Swap" in args[2]:
                 stats = ["def", "spd"]
+            elif "Power Swap" in args[2]:
+                stats = ["atk", "spa"]
+            elif "Speed Swap" in args[2]:
+                stats = ["spe"]
             else:
                 raise UnimplementedSwapboost(["swapboost"] + args)
         else:
@@ -1210,7 +1214,7 @@ class SimProtocol:
         active_pokemon = self.curr_turn.get_active_pokemon_from_str(args[0])
         to_replace = active_pokemon[replace_slot]
 
-        # find the zoroark that is replacing it
+        # find the zoroark/zorua that is replacing it
         replace_with = None
         poke_list = self.curr_turn.get_pokemon_list_from_str(args[0])
         replace_with_name, _ = Pokemon.identify_from_details(
@@ -1220,26 +1224,40 @@ class SimProtocol:
             if p is not None and p.name == replace_with_name:
                 replace_with = p
                 break
-        if replace_with is None or not replace_with.name.startswith("Zoroark"):
+        if replace_with is None:
+            try:
+                replace_with = self.get_or_create_pokemon_from_details(
+                    args[1], poke_list
+                )
+            except Exception:
+                replace_with = None
+        if replace_with is None or not (
+            replace_with.name.startswith("Zoroark")
+            or replace_with.name.startswith("Zorua")
+        ):
             raise ZoroarkException
 
         # everything that has happened to `replace` since it was last switched
         # in has been wrong. So go back and find the last time it was inactive.
-        for prev_turn in self.replay.turnlist[::-1]:
-            active_on_turn = prev_turn.get_active_pokemon_from_str(args[0])
-            if to_replace not in active_on_turn:
-                break
-        old_version = copy.deepcopy(prev_turn.get_pokemon_by_uid(to_replace.unique_id))
-        for idx, p in enumerate(poke_list):
-            if p.unique_id == old_version.unique_id:
-                poke_list[idx] = old_version
-                break
+        prev_turn = self.replay.turnlist[0]
+        if to_replace is not None:
+            for prev_turn in self.replay.turnlist[::-1]:
+                active_on_turn = prev_turn.get_active_pokemon_from_str(args[0])
+                if to_replace not in active_on_turn:
+                    break
+            prev_mon = prev_turn.get_pokemon_by_uid(to_replace.unique_id)
+            if prev_mon is not None:
+                old_version = copy.deepcopy(prev_mon)
+                for idx, p in enumerate(poke_list):
+                    if p is not None and p.unique_id == old_version.unique_id:
+                        poke_list[idx] = old_version
+                        break
 
-        # update the active zoroark to the general condition of the mistaken pokemon
-        replace_with.status = to_replace.status
-        replace_with.current_hp = to_replace.current_hp
-        replace_with.max_hp = to_replace.max_hp
-        replace_with.boosts = to_replace.boosts
+            # update the active zoroark to the general condition of the mistaken pokemon
+            replace_with.status = to_replace.status
+            replace_with.current_hp = to_replace.current_hp
+            replace_with.max_hp = to_replace.max_hp
+            replace_with.boosts = to_replace.boosts
         active_pokemon[replace_slot] = replace_with
 
         # we're going to have to go back and fix all this during the "backward" pass

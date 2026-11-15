@@ -423,10 +423,16 @@ class TeamPreviewModel(nn.Module):
         our_items_sorted = [item for _, _, _, item in our_team_with_info_sorted]
         opponent_team_sorted = consistent_pokemon_order(opponent_team)
 
+        blank_tok = self.tokenizer["<blank>"]
+
+        def _safe_tok(word: str) -> int:
+            tok = self.tokenizer[word]
+            return tok if tok >= 0 else blank_tok
+
         # tokenize pokemon
-        our_tokens = [self.tokenizer[pokemon_name(name)] for name in our_team_sorted]
+        our_tokens = [_safe_tok(pokemon_name(name)) for name in our_team_sorted]
         opp_tokens = [
-            self.tokenizer[pokemon_name(name)] for name in opponent_team_sorted
+            _safe_tok(pokemon_name(name)) for name in opponent_team_sorted
         ]
         team_tokens = torch.tensor([our_tokens + opp_tokens], dtype=torch.long).to(
             device
@@ -442,11 +448,11 @@ class TeamPreviewModel(nn.Module):
                 pokemon_info = []
                 moves_sorted = consistent_move_order(moves)[:4]
                 for move in moves_sorted:
-                    pokemon_info.append(self.tokenizer[move_name(move)])
+                    pokemon_info.append(_safe_tok(move_name(move)))
                 while len(pokemon_info) < 4:
-                    pokemon_info.append(self.tokenizer["<blank>"])
-                pokemon_info.append(self.tokenizer[ability])
-                pokemon_info.append(self.tokenizer[item])
+                    pokemon_info.append(blank_tok)
+                pokemon_info.append(_safe_tok(ability))
+                pokemon_info.append(_safe_tok(item))
                 additional_info_tokens.append(pokemon_info)
             additional_info_tokens = torch.tensor(
                 [additional_info_tokens], dtype=torch.long
@@ -455,7 +461,7 @@ class TeamPreviewModel(nn.Module):
         format_token = None
         if battle_format is not None:
             format_token = torch.tensor(
-                [self.tokenizer[f"<{battle_format}>"]], dtype=torch.long
+                [_safe_tok(f"<{battle_format}>")], dtype=torch.long
             ).to(device)
 
         self.eval()

@@ -129,7 +129,7 @@ class MetamonBackendBattle(pe.AbstractBattle):
 
         active_pokemon = None
         side = request.get("side", False)
-        if side and not self.reviving:
+        if side:
             active_pokemon = self._update_turn_from_side_request(side)
 
         active = request.get("active", False)
@@ -163,12 +163,26 @@ class MetamonBackendBattle(pe.AbstractBattle):
         Reveal information about (our team's) pokemon from a "side" request
         """
 
+        # sync species/forme, nickname, and level from request details (handles wildcard |poke| formes
+        # like Dudunsparce-*, Greninja-*, and mid-battle forme changes like Ogerpon-*-Tera)
+        ident = poke.get("ident", "")
+        if ":" in ident and metamon_p.nickname is None:
+            metamon_p.nickname = ident.split(":", 1)[1].strip()
+        details = poke.get("details")
+        if details:
+            poke_name, lvl = Pokemon.identify_from_details(details, gen=self._gen)
+            metamon_p.lvl = lvl
+            if poke_name != metamon_p.name:
+                try:
+                    metamon_p.update_pokedex_info(poke_name)
+                except Exception:
+                    pass
+
         # update condition from request
         current_hp, max_hp, status = self._parse_condition_from_side_request(
             poke["condition"]
         )
-        if status is not None:
-            metamon_p.status = status
+        metamon_p.status = status if status is not None else Nothing.NO_STATUS
         if current_hp is not None:
             metamon_p.current_hp = current_hp
         if max_hp is not None:
@@ -188,6 +202,10 @@ class MetamonBackendBattle(pe.AbstractBattle):
         tera_type = poke.get("teraType", None)
         if tera_type is not None and metamon_p.tera_type is None:
             metamon_p.tera_type = tera_type
+        terastallized = poke.get("terastallized", None)
+        if terastallized:
+            metamon_p.type = [terastallized]
+            metamon_p.tera_type = terastallized
 
         # update item from request
         if poke["item"] == "":
@@ -227,6 +245,7 @@ class MetamonBackendBattle(pe.AbstractBattle):
                 # build available_switches
                 if poke["active"]:
                     active_pokemon = metamon_p
+                    turn.get_active_pokemon(p1)[0] = metamon_p
                 elif (
                     not self.trapped
                     and not self.reviving
@@ -236,7 +255,6 @@ class MetamonBackendBattle(pe.AbstractBattle):
                 elif (
                     not self.trapped
                     and self.reviving
-                    and poke.get("reviving", False)
                     and metamon_p.status == pe.Status.FNT
                 ):
                     self._available_switches.append(metamon_p)

@@ -1037,7 +1037,26 @@ class PkmnBotPlayer(MetamonPlayer):
         parts = battle.battle_tag.split("-")
         if len(parts) >= 2:
             self._format = parts[1].replace("-", "").lower()
-        return super().teampreview(battle)
+        try:
+            order = super().teampreview(battle)
+            if order and order.startswith("/team ") and len(order) > len("/team "):
+                return order
+        except Exception as exc:
+            self.logger.warning(
+                "teampreview failed in %s (%s), falling back to random: %s",
+                battle.battle_tag,
+                self._format,
+                exc,
+            )
+        side_mons = (
+            getattr(battle, "_last_request", {})
+            .get("side", {})
+            .get("pokemon", [])
+        )
+        n_mons = len(side_mons) or len(battle.team) or 6
+        members = list(range(1, n_mons + 1))
+        random.shuffle(members)
+        return "/team " + "".join(str(c) for c in members)
 
     async def _create_battle(self, split_message: List[str]) -> AbstractBattle:
         if len(split_message) < 2:
@@ -1128,7 +1147,15 @@ class PkmnBotPlayer(MetamonPlayer):
             if len(split_message) <= 1:
                 continue
             elif split_message[0] == "":
-                battle.parse_message(split_message)
+                try:
+                    battle.parse_message(split_message)
+                except Exception as exc:
+                    self.logger.warning(
+                        "Ignored parse_message error in %s on %s: %s",
+                        battle.battle_tag,
+                        split_message,
+                        exc,
+                    )
 
             if split_message[1] in self.MESSAGES_TO_IGNORE:
                 pass
