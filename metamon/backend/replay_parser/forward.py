@@ -256,15 +256,15 @@ class SimProtocol:
         """
         player, size = args
         size = int(size)
-        assert len(self.curr_turn.pokemon_1) == 6
-        assert len(self.curr_turn.pokemon_2) == 6
         if player == "p1":
             team = self.curr_turn.pokemon_1
         elif player == "p2":
             team = self.curr_turn.pokemon_2
+        else:
+            return
         while len(team) > size and None in team:
             team.remove(None)
-        if size != 6:
+        if size < 1 or size > 6:
             raise UnusualTeamSize(size)
 
     def _parse_turn(self, args: List[str]):

@@ -52,7 +52,10 @@ class Dex:
             return orjson.loads(f.read())
 
     def load_learnset(self) -> Dict[str, Dict[str, Union[int, float]]]:
-        with open(os.path.join(self._static_files_root, "learnset.json")) as f:
+        path = os.path.join(self._static_files_root, "learnset.json")
+        if not os.path.exists(path):
+            return {}
+        with open(path) as f:
             return orjson.loads(f.read())
 
     def load_pokedex(self, gen: int) -> Dict[str, Any]:

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import copy
 import re
 import warnings
@@ -6,7 +8,10 @@ from typing import Optional, List, Any, Set
 from abc import ABC, abstractmethod
 
 import numpy as np
-import gymnasium as gym
+try:
+    import gymnasium as gym
+except ImportError:  # pragma: no cover - lightweight inference bundles omit gymnasium
+    gym = None  # type: ignore[assignment]
 import string
 
 from poke_env.environment import (
@@ -452,6 +457,7 @@ class UniversalPokemon:
         if pokemon is None:
             return None
         p = Pokemon(gen=pokemon.gen)
+        p._data = metamon.backend.showdown_dex.Dex.from_gen(pokemon.gen)
         p._base_stats = pokemon.base_stats
         p._type_1 = PokemonType.from_name(pokemon.type[0])
         p._type_2 = (
@@ -586,8 +592,14 @@ class UniversalState:
         switches = [UniversalPokemon.from_Pokemon(p) for p in possible_switches]
         player_prev_move = UniversalMove.from_Move(battle.active_pokemon.previous_move)
         opponent_prev_move = UniversalMove.from_Move(battle.opponent_active_pokemon.previous_move)
-        # NOTE: always assumes 6 in the party, and this will probably never change for backwards compat
-        opponents_remaining = 6 - sum(p.status == Status.FNT for p in battle.opponent_team.values())
+        opp_max = (
+            len(battle._current_turn.get_pokemon(battle.player_role != "p1"))
+            if hasattr(battle, "_current_turn")
+            else 6
+        )
+        opponents_remaining = max(
+            0, opp_max - sum(p.status == Status.FNT for p in battle.opponent_team.values())
+        )
         opponent_teampreview = [pokemon_name(p.base_species) for p in battle.teampreview_opponent_team if p is not None]
         force_switch = battle.force_switch
         if isinstance(force_switch, list):

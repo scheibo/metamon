@@ -17,6 +17,8 @@ __pycache__/
 *.sh
 !tools/
 !tools/*.sh
+!scripts/
+!scripts/*.sh
 *.csv
 *.pt
 
@@ -172,3 +174,4 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 .idea/
 metamon/data/stats
+.build-cache/
